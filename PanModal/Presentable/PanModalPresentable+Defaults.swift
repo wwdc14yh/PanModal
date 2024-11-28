@@ -13,6 +13,10 @@ import UIKit
  */
 public extension PanModalPresentable where Self: UIViewController {
 
+    var embedView: UIView? {
+        return nil
+    }
+    
     var topOffset: CGFloat {
         return topLayoutOffset + 21.0
     }

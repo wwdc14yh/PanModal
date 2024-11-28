@@ -158,6 +158,8 @@ open class PanModalPresentationController: UIPresentationController {
         gesture.delegate = self
         return gesture
     }()
+    
+    private var embedView: UIView?
 
     // MARK: - Deinitializers
 
@@ -183,10 +185,12 @@ open class PanModalPresentationController: UIPresentationController {
 
         guard let coordinator = presentedViewController.transitionCoordinator else {
             backgroundView.dimState = .max
+            layoutEmbedView()
             return
         }
 
         coordinator.animate(alongsideTransition: { [weak self] _ in
+            self?.layoutEmbedView()
             self?.backgroundView.dimState = .max
             self?.presentedViewController.setNeedsStatusBarAppearanceUpdate()
         })
@@ -203,6 +207,7 @@ open class PanModalPresentationController: UIPresentationController {
 
         guard let coordinator = presentedViewController.transitionCoordinator else {
             backgroundView.dimState = .off
+            self.embedView?.frame.origin.y = containerView?.frame.maxY ?? 0
             return
         }
 
@@ -211,6 +216,7 @@ open class PanModalPresentationController: UIPresentationController {
          so hiding it on view dismiss means avoiding visual bugs
          */
         coordinator.animate(alongsideTransition: { [weak self] _ in
+            self?.embedView?.frame.origin.y = self?.containerView?.frame.maxY ?? 0
             self?.dragIndicatorView.alpha = 0.0
             self?.backgroundView.dimState = .off
             self?.presentingViewController.setNeedsStatusBarAppearanceUpdate()
@@ -339,6 +345,10 @@ private extension PanModalPresentationController {
         guard let presentable = presentable
             else { return }
 
+        if let embedView = presentable.embedView {
+            addEmbedView(embedView, in: containerView)
+        }
+        
         /**
          ⚠️ If this class is NOT used in conjunction with the PanModalPresentationAnimator
          & PanModalPresentable, the presented view should be added to the container view
@@ -353,10 +363,20 @@ private extension PanModalPresentationController {
 
         if presentable.shouldRoundTopCorners {
             addRoundedCorners(to: presentedView)
+            if let embedView {
+                embedView.layer.cornerRadius = presentable.cornerRadius
+                embedView.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]
+                embedView.layer.masksToBounds = true
+            }
         }
 
         setNeedsLayoutUpdate()
         adjustPanContainerBackgroundColor()
+    }
+    
+    func layoutEmbedView() {
+        guard let embedView else { return }
+        embedView.frame = presentedView.frame
     }
 
     /**
@@ -417,6 +437,12 @@ private extension PanModalPresentationController {
         dragIndicatorView.heightAnchor.constraint(equalToConstant: Constants.dragIndicatorSize.height).isActive = true
     }
 
+    func addEmbedView(_ embedView: UIView, in containerView: UIView) {
+        self.embedView = embedView
+        embedView.frame = CGRect(x: containerView.frame.minX, y: containerView.frame.maxY, width: containerView.frame.width, height: containerView.frame.height)
+        containerView.addSubview(embedView)
+    }
+    
     /**
      Calculates & stores the layout anchor points & options
      */
@@ -653,7 +679,7 @@ private extension PanModalPresentationController {
      */
     func adjust(toYPosition yPos: CGFloat) {
         presentedView.frame.origin.y = max(yPos, anchoredYPosition)
-        
+        layoutEmbedView()
         guard presentedView.frame.origin.y > shortFormYPosition else {
             backgroundView.dimState = .max
             return
